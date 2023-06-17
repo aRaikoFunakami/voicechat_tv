@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            /* Align button to center of screen */
+            justify-content: center;
+        }
+
+        #video {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            z-index: -100;
+        }
+
+        #microphone {
+            position: relative;
+            z-index: 1;
+            background-image: url('http://127.0.0.1:8001/mic.png');
+            background-size: cover;
+            width: 100px;
+            /* Double the button size */
+            height: 100px;
+            /* Double the button size */
+            border: none;
+            background-color: rgba(0, 0, 0, 0.0);
+            /* 半透明な背景色を指定 */
+            filter: invert(70%) sepia(100%) saturate(0%) hue-rotate(0deg);
+            /* フィルターを適用 */
+        }
+
+        #status {
+            background-color: rgba(0, 0, 0, 0.5);
+            /* 半透明の黒 */
+            border-radius: 25px;
+            /* 角を丸く */
+            color: white;
+            /* テキストの色を白に */
+            padding: 15px;
+            /* テキスト周りの余白 */
+        }
+
+        #answer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60%;
+            height: 60%;
+            background-color: rgba(0, 0, 0, 0.5);
+            /* 半透明の黒 */
+            border-radius: 25px;
+            /* 角を丸く */
+            color: white;
+            /* テキストの色を白に */
+            padding: 15px;
+            /* テキスト周りの余白 */
+            overflow: auto;
+            /* 領域内のコンテンツがオーバーフローした場合にスクロールバーを表示 */
+            font-weight: bold;
+            /* テキストを太く */
+            font-size: 46px;
+            /* フォントサイズを大きく */
+            word-wrap: break-word;
+            /* テキストを折り返す */
+            display: none;
+            /* 最初は非表示にする */
+        }
+
+        #answer img {
+            width: 100%;
+            /* 画像の幅を領域に合わせる */
+            height: auto;
+            /* 高さを自動調整して縦横比を維持 */
+            object-fit: contain;
+            /* 縦横比を維持したまま、領域にフィット */
+        }
+
+        #container {
+            display: flex;
+            align-items: center;
+            flex-direction: column;
+            position: fixed;
+            bottom: 0%;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- please get a video from  https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.720p.webm ->
+    <video id="video" src="http://127.0.0.1:8001/Big_Buck_Bunny_4K.webm.720p.webm" autoplay loop muted></video>
+    <div id="answer"></div>
+    <div id="container">
+        <button id="microphone"></button>
+        <p id="status">音声認識を開始してください</p>
+    </div>
+
+    <script>
+        let isProcessing = false;
+        let isCanceled = false;
+        let isSpeeking = false;
+
+        const video = document.getElementById('video');
+        const microphone = document.getElementById('microphone');
+        const status = document.getElementById('status');
+        const answer = document.getElementById('answer');
+
+        window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ja-JP';
+
+        microphone.addEventListener('mousedown', startProcessing);
+        microphone.addEventListener('mouseup', stopProcessing);
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') startProcessing();
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') stopProcessing();
+        });
+
+        // 背景動画の音声を再生する 初期値は muted でないとautoplayできないための処理
+        document.addEventListener("mousedown", function () {
+            video.play();
+            video.muted = false;
+        });
+
+        // スクリーンショットを撮影し、画像URLを取得する処理
+        function screenshotImage() {
+            // スクリーンショットを撮りたい要素を取得する
+            const element = document.getElementById("video");
+
+            // キャンバスを作成して要素のサイズに合わせる
+            const canvas = document.createElement("canvas");
+            canvas.width = element.offsetWidth;
+            canvas.height = element.offsetHeight;
+
+            // キャンバスに要素の内容を描画する
+            const context = canvas.getContext("2d");
+            context.drawImage(element, 0, 0, canvas.width, canvas.height);
+
+            // キャンバスの内容を画像として表示するための新しいイメージ要素を作成
+            const image = new Image();
+            image.src = canvas.toDataURL(); // キャンバスの内容をデータURLに変換して設定
+            return image;
+        }
+
+        function hide_element_with_animation(element){
+            // answer 領域をアニメーションさせながら消す
+            setTimeout(() => {
+                // 画面を半分に縮小
+                // 初期の状態を保存
+                const initialTransform = element.style.transform;
+                const initialTransition = element.style.transition;
+                element.style.transform = "scale(0.5)";
+                element.style.transition = "transform 0.5s";
+                setTimeout(() => {
+                    // 要素の状態をリセット
+                    element.style.transform = initialTransform;
+                    element.style.transition = initialTransition;
+                    // 要素を隠す
+                    element.style.display = 'none';
+                    element.innerHTML="";
+                }, 1500);
+            }, 1500);
+        }
+
+        function truncateString(text, max) {
+            if (text.length > max) {
+                return text.slice(0, max) + "...";
+            } else {
+                return text;
+            }
+        }
+        recognition.addEventListener('result', (e) => {
+            if (isCanceled) return;
+            // 処理するテキスト
+            const text = e.results[0][0].transcript;
+            // スクリーンショットはローカル処理
+            if (text.includes("スクリーンショット")) {
+                console.log("スクリーンショットが含まれています");
+                // answer 領域を表示する
+                answer.style.display = 'block';
+                // screenshot を撮影して answerへ表示
+                const image = screenshotImage();
+                answer.innerHTML="";
+                answer.appendChild(image);
+                // status をアップデート
+                status.innerText = 'スクリーンショットを撮影しました';
+                // ChatGPTを呼び出さずに終了するための後処理
+                video.muted = false;
+                microphone.disabled = false;
+                isProcessing = false;
+                isSpeeking = false;
+                // answer 領域をアニメーションさせながら消す
+                hide_element_with_animation(answer);
+                return;
+            }
+            // chatgptに処理を依頼する
+            isSpeeking = true;
+            video.muted = false;
+            status.innerText = `"${text}" をサーバーに送信しています...`;
+            fetch(`http://127.0.0.1:8001/input?text=${encodeURIComponent(text)}`)
+                .then(response => response.json())
+                .then(data => {
+                    // レスポンスデータにアクセスする
+                    const responseText = data.response;
+                    const urls = data.urls;
+                    // 回答が無駄に長すぎる場合には最大文字数までに抑えて処理する
+                    res = truncateString(responseText, 300);
+                    const utterance = new SpeechSynthesisUtterance(responseText);
+                    utterance.onend = function (event) {
+                        console.log('SpeechSynthesisUtterance.onend');
+                        status.innerText = '処理が完了しました';
+                        video.muted = false;
+                        microphone.disabled = false;
+                        isProcessing = false;
+                        isSpeeking = false;
+                        // しばらくiframeにNHKのお天気ビデオを表示させたあと消す
+                        if (urls?.[0]) {
+                                // iframe要素を作成
+                                const iframe = document.createElement('iframe');
+                                iframe.src = urls[0];
+                                iframe.style.width = '100%';
+                                iframe.style.height = '100%';
+                                iframe.style.border = 'none'; // 枠線を非表示にする
+                                iframe.id = 'my-iframe';
+                                answer.innerHTML = ""
+                                answer.appendChild(iframe);
+                        }
+                        setTimeout(() => {
+                            hide_element_with_animation(answer);
+                        }, 5000);
+                    };
+                    window.speechSynthesis.speak(utterance);
+                    video.muted = true;
+                    status.innerText = "[ミュート中]"
+                    status.innerText = status.innerText + '音声再生中';
+                    answer.style.display = 'block';
+                    answer.innerHTML = res;
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    status.innerText = 'エラーが発生しました。動画のボリュームを戻します。';
+                    video.muted = false;
+                    microphone.disabled = false;
+                    isProcessing = false;
+                    isSpeeking = false;
+                });
+        });
+
+        function startProcessing() {
+            // 音声入力中の場合は無視する
+            if (isProcessing) return;
+            // 読み上げ中なら読み上げをキャンセルする
+            if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+                console.log('SpeechSynthesisUtterance.cancel');
+                status.innerText = '読み上げをキャンセルしました';
+                video.muted = false;
+                microphone.disabled = false;
+                isProcessing = false;
+                isSpeeking = false;
+                answer.innerText = "";
+                answer.style.display = 'none';
+            }
+            isProcessing = true;
+            isCanceled = false;
+            microphone.disabled = true;
+            microphone.style.filter = "none";
+            video.muted = true;
+            status.innerText = "[ミュート中]"
+            status.innerText = status.innerText + '音声入力を開始しています...';
+            recognition.start();
+        }
+
+        function stopProcessing() {
+            if (!isProcessing) return;
+            if (!isSpeeking) {
+                video.muted = false;
+                status.innerText = '音声認識処理をキャンセルしました';
+            }
+            recognition.stop();
+            isCanceled = true;
+            microphone.disabled = false;
+            microphone.style.filter = "invert(70%) sepia(100%) saturate(0%) hue-rotate(0deg)"; /* フィルターを適用 */
+            isProcessing = false;
+        }
+    </script>
+</body>
+
+</html>
