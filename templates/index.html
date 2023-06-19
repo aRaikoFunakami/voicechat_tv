@@ -36,7 +36,7 @@
             border: none;
             background-color: rgba(0, 0, 0, 0.0);
             /* 半透明な背景色を指定 */
-            filter: invert(70%) sepia(100%) saturate(0%) hue-rotate(0deg);
+            filter: invert(100%) sepia(100%) saturate(0%) hue-rotate(0deg);
             /* フィルターを適用 */
         }
 
@@ -66,7 +66,8 @@
             /* テキストの色を白に */
             padding: 15px;
             /* テキスト周りの余白 */
-            overflow: auto;
+            /*overflow: auto;*/
+            overflow-y: scroll;
             /* 領域内のコンテンツがオーバーフローした場合にスクロールバーを表示 */
             font-weight: bold;
             /* テキストを太く */
@@ -107,12 +108,14 @@
     </div>
 
     <script>
-        let isProcessing = false;
-        let isCanceled = false;
-        let isSpeeking = false;
+        let isPushedMicButton = false;
+        let isSpeechRecognizing = false;
+        let isCanceledSpeechRecognition = false;
+        let eventSource = null;
 
         const video = document.getElementById('video');
         const microphone = document.getElementById('microphone');
+        microphone.disabled = true; // クリック禁止　スペースのみOK
         const status = document.getElementById('status');
         const answer = document.getElementById('answer');
 
@@ -129,7 +132,7 @@
             if (e.code === 'Space') stopProcessing();
         });
 
-        // 背景動画の音声を再生する 初期値は muted でないとautoplayできないための処理
+        // 背景動画の音声を再生する 初期値は muted でないとautoplayできないためのダミー処理
         document.addEventListener("mousedown", function () {
             video.play();
             video.muted = false;
@@ -155,8 +158,12 @@
             return image;
         }
 
-        function hide_element_with_animation(element){
-            // answer 領域をアニメーションさせながら消す
+        // element 領域をアニメーションさせながら消す
+        //
+        // element.style.display = 'none'
+        // element.innerHTML=''
+        //
+        function hide_element_with_animation(element) {
             setTimeout(() => {
                 // 画面を半分に縮小
                 // 初期の状態を保存
@@ -170,132 +177,214 @@
                     element.style.transition = initialTransition;
                     // 要素を隠す
                     element.style.display = 'none';
-                    element.innerHTML="";
+                    element.innerHTML = "";
                 }, 1500);
             }, 1500);
         }
 
-        function truncateString(text, max) {
-            if (text.length > max) {
-                return text.slice(0, max) + "...";
-            } else {
-                return text;
-            }
-        }
+
+        recognition.addEventListener('start', function () {
+            console.log('音声認識 開始');
+            video.muted = true;
+        });
+
+        recognition.addEventListener('end', function () {
+            console.log('音声認識 終了');
+            isSpeechRecognizing = false;
+            video.muted = false;
+        });
+
+        recognition.addEventListener('nomatch', function (event) {
+            // 音声認識が一致しない結果を返した場合の処理
+            onsole.log('音声認識 音声認識が一致しない結果を返した');
+            isSpeechRecognizing = false;
+            video.muted = false;
+        });
+
+        recognition.addEventListener('error', function (event) {
+            onsole.log('音声認識 エラーが発生');
+            isSpeechRecognizing = false;
+            video.muted = false;
+        });
+        // 音声認識の途中結果が利用可能になったときの処理
+        //
+        // 1. 認識したテキストをChatGPTに送信して回答を受信する
+        // 2. ローカルで処理してしまうもの
+        // - スクリーンショット処理
+        //
         recognition.addEventListener('result', (e) => {
-            if (isCanceled) return;
+            console.log('音声認識したテキスト:' + e.results[0][0].transcript);
+            // 音声認識のためにミュートしていたのを解除
+            video.muted = false;
+            // キャンセル処理されている場合は処理を中断
+            if (isCanceledSpeechRecognition) return;
+
             // 処理するテキスト
             const text = e.results[0][0].transcript;
-            // スクリーンショットはローカル処理
+            status.innerText = `"${text}" を認識しました`;
+
+            // ローカルでの処理してしまう
+            // スクリーンショット
             if (text.includes("スクリーンショット")) {
-                console.log("スクリーンショットが含まれています");
+                console.log("スクリーンショットを実行する");
                 // answer 領域を表示する
                 answer.style.display = 'block';
                 // screenshot を撮影して answerへ表示
                 const image = screenshotImage();
-                answer.innerHTML="";
+                answer.innerHTML = "";
                 answer.appendChild(image);
                 // status をアップデート
                 status.innerText = 'スクリーンショットを撮影しました';
-                // ChatGPTを呼び出さずに終了するための後処理
-                video.muted = false;
-                microphone.disabled = false;
-                isProcessing = false;
-                isSpeeking = false;
                 // answer 領域をアニメーションさせながら消す
                 hide_element_with_animation(answer);
                 return;
             }
-            // chatgptに処理を依頼する
-            isSpeeking = true;
-            video.muted = false;
-            status.innerText = `"${text}" をサーバーに送信しています...`;
-            fetch(`http://127.0.0.1:8001/input?text=${encodeURIComponent(text)}`)
-                .then(response => response.json())
-                .then(data => {
-                    // レスポンスデータにアクセスする
-                    const responseText = data.response;
-                    const urls = data.urls;
-                    // 回答が無駄に長すぎる場合には最大文字数までに抑えて処理する
-                    res = truncateString(responseText, 300);
-                    const utterance = new SpeechSynthesisUtterance(responseText);
-                    utterance.onend = function (event) {
-                        console.log('SpeechSynthesisUtterance.onend');
-                        status.innerText = '処理が完了しました';
-                        video.muted = false;
-                        microphone.disabled = false;
-                        isProcessing = false;
-                        isSpeeking = false;
-                        // しばらくiframeにNHKのお天気ビデオを表示させたあと消す
-                        if (urls?.[0]) {
-                                // iframe要素を作成
-                                const iframe = document.createElement('iframe');
-                                iframe.src = urls[0];
-                                iframe.style.width = '100%';
-                                iframe.style.height = '100%';
-                                iframe.style.border = 'none'; // 枠線を非表示にする
-                                iframe.id = 'my-iframe';
-                                answer.innerHTML = ""
-                                answer.appendChild(iframe);
+
+            //
+            // 音声読み上げ処理
+            //
+            const synth = window.speechSynthesis;
+            // ストリーム受信したテキストを読み上げるためのバッファとフラグ
+            let buffer = ''; // まだ読み上げていない文字を保持するバッファ
+            let activeUtterances = 0;  // ストリームできているデータの全ての読み上げが終了したことを判定するためのカウンタ
+            let endCallback = null;    // 全ての読み上げが終わった後に呼び出すコールバック関数
+            const delimiters = ['。', '.']; // 読み上げを開始するタイミングは デリミタを受信する、もしくはmaxBufferSizeを越えた場合
+            const maxBufferSize = 40; // 最大バッファサイズ（これを超えたら読み上げを開始する）
+
+            // 音声読み上げ終了したら表示していたエリアを消す
+            function endSpeakCallback() {
+                hide_element_with_animation(answer);
+            }
+
+            // バッファのデータの読み上げとクリア
+            function speakBuffer(callback) {
+                // 全ての読み上げが終わった後に呼び出すコールバック関数を設定
+                const endCallback = callback;
+                // 音声再生前にビデオはミュートしてから再生する
+                video.muted = true;
+                status.innerText = "[ミュート中]"
+                status.innerText = status.innerText + '音声再生中';
+                // バッファにデータが残っていたら再生する
+                if (buffer.trim() !== '') {
+                    const utterThis = new SpeechSynthesisUtterance(buffer);
+                    // バッファにデータが残っていたら読み上げを続ける
+                    utterThis.onend = () => {
+                        // データが残っていれば読み上げる
+                        if (buffer !== '') {
+                            speakBuffer();
                         }
-                        setTimeout(() => {
-                            hide_element_with_animation(answer);
-                        }, 5000);
+                        activeUtterances--;
+                        if (activeUtterances === 0 && typeof endCallback === 'function') {
+                            endCallback();
+                            status.innerText = '音声再生終了';
+                        }
                     };
-                    window.speechSynthesis.speak(utterance);
-                    video.muted = true;
-                    status.innerText = "[ミュート中]"
-                    status.innerText = status.innerText + '音声再生中';
-                    answer.style.display = 'block';
-                    answer.innerHTML = res;
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                    status.innerText = 'エラーが発生しました。動画のボリュームを戻します。';
-                    video.muted = false;
-                    microphone.disabled = false;
-                    isProcessing = false;
-                    isSpeeking = false;
-                });
+                    // speak メソッドを呼び出す前にカウンタをインクリメント
+                    activeUtterances++;
+                    // 実際の読み上げ処理を行う。バッファ内のデータは読み上げ処理用のバッファに追加済みなのでクリアする
+                    synth.speak(utterThis);
+                    buffer = '';
+                }
+            }
+
+            //
+            // 認識したテキストをChatGPTに送信して回答を受信する
+            // 
+            // EventSourceでストリームデータを取得
+            eventSource = new EventSource(`http://127.0.0.1:8001/input?text=${encodeURIComponent(text)}`);
+
+            // ストリームで受け取ったデータを画面表示しつつ読み上げる
+            eventSource.onmessage = function (event) {
+                // const data = event.data;
+                // event.dataをJSONにパース
+                let jsonData = JSON.parse(event.data);
+                const data = jsonData.response;
+                // ストリームで受け取ったデータを徐々に表示する
+                answer.style.display = 'block';
+                answer.innerHTML = answer.innerHTML + data;
+                // レスポンス領域を自動スクロール
+                answer.scrollTop = answer.scrollHeight;
+                // ストリームデータを音声再生
+                buffer += data;
+                // デリミタが届いたか、バッファが最大サイズを超えたらバッファを読み上げてバッファを空にする
+                if (delimiters.includes(data) || buffer.length >= maxBufferSize) {
+                    speakBuffer(endSpeakCallback);
+                }
+            };
+
+            // connection が切れた場合も onerror が呼ばれるので close して自動で再接続を防ぐ
+            eventSource.onerror = function (event) {
+                console.error('Error occurred:', event);
+                eventSource.close();
+                // ステータス変更
+                status.innerText = 'サーバーとの接続が終了しました。';
+                // バッファが残っている場合はすべて読み上げる
+                speakBuffer(endSpeakCallback);
+                // ボリュームを戻す
+                video.muted = false;
+            };
+
+            eventSource.onopen = function (event) {
+                console.log('Connection opened');
+                status.innerText = `"${text}" をサーバーに送信しています...`;
+            };
         });
 
         function startProcessing() {
+            // Micボタンは一度 Down すると UP するまで再度 Down できない
+            if (isPushedMicButton) return;
+            isPushedMicButton = true;
             // 音声入力中の場合は無視する
-            if (isProcessing) return;
+            if (isSpeechRecognizing) return;
+            // 
+            // すでに動いている処理をキャンセル
+            //
             // 読み上げ中なら読み上げをキャンセルする
             if (window.speechSynthesis.speaking) {
                 window.speechSynthesis.cancel();
-                console.log('SpeechSynthesisUtterance.cancel');
+                console.log('読み上げをキャンセルしました');
                 status.innerText = '読み上げをキャンセルしました';
                 video.muted = false;
-                microphone.disabled = false;
-                isProcessing = false;
-                isSpeeking = false;
+            }
+            // ネットワークが接続中なら切る
+            if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
+                console.log('ネットワーク接続の強制切断');
+                eventSource.close();
+
+            }
+            // answer 画面が表示されている場合は消す
+            if (answer.style.display != 'none'){
                 answer.innerText = "";
                 answer.style.display = 'none';
             }
-            isProcessing = true;
-            isCanceled = false;
-            microphone.disabled = true;
-            microphone.style.filter = "none";
+            //
+            // 音声認識処理
+            //
+            isSpeechRecognizing = true;
+            isCanceledSpeechRecognition = false;
+            // Micボタンの色味変更
+            microphone.style.filter = "brightness(0%) sepia(1000%) hue-rotate(0deg)";
             video.muted = true;
             status.innerText = "[ミュート中]"
-            status.innerText = status.innerText + '音声入力を開始しています...';
+            status.innerText = status.innerText + '音声認識を開始しています...';
+            console.log('音声認識を開始する');
             recognition.start();
         }
 
         function stopProcessing() {
-            if (!isProcessing) return;
-            if (!isSpeeking) {
-                video.muted = false;
+            // Micボタンは一度 Down すると UP するまで再度 Down できない
+            isPushedMicButton = false;
+            microphone.style.filter = "invert(100%) sepia(100%) saturate(0%) hue-rotate(0deg)";
+            // 音声入力中の場合はキャンセル処理
+            if (isSpeechRecognizing) {
+                console.log('音声認識をキャンセルする');
+                recognition.stop();
+                isCanceledSpeechRecognition = true;
                 status.innerText = '音声認識処理をキャンセルしました';
+                return;
             }
-            recognition.stop();
-            isCanceled = true;
-            microphone.disabled = false;
-            microphone.style.filter = "invert(70%) sepia(100%) saturate(0%) hue-rotate(0deg)"; /* フィルターを適用 */
-            isProcessing = false;
         }
+
     </script>
 </body>
 

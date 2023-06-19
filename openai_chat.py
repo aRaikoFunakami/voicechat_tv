@@ -79,7 +79,7 @@ def truncate_string(text, max):
     else:
         return text
     
-def chat(text):
+def chat(text, callback=None):
 	config = load_config()
 	openai.api_key = config["openai_api_key"]
 	logging.info("chatstart")
@@ -112,9 +112,14 @@ def chat(text):
 		res = truncate_string(function_response, 100)
 		logging.info("関数の回答:%s", res)
 		print(f"\nfunction_response:\n{res}\n")
+		if callback is None:
+			stream = False
+		else:
+			stream = True
 		second_response = openai.ChatCompletion.create(
 			model="gpt-4-0613",
 			temperature = 0.2,
+			stream = stream,  # this time, we set stream=True
 			messages=[
 				{"role": "user", "content": prompt},
 				message,
@@ -125,15 +130,46 @@ def chat(text):
 				},
 			],
 		)
-		response = second_response.choices[0]["message"]["content"].strip()
+		# print(f'second_response:{second_response}')
+		response = ""
+		# stream=False
+		if callback is None:
+			response = second_response.choices[0]["message"]["content"].strip()
+		# stream=True
+		else:
+			for event in second_response:
+				# print(f'event:{event.choices[0]}')
+				if event.choices[0]["finish_reason"] != "stop":
+					res = { "response": event.choices[0]["delta"]["content"], "urls":[""]}
+					callback(json.dumps(res))
+					#callback(event.choices[0]["delta"]["content"])
+					response += event.choices[0]["delta"]["content"]
+					# print(f'event:{event.choices[0]["delta"]["content"]}')
+				else:
+					callback(None)
+
 		nhk_weather = 'https://www3.nhk.or.jp/news/weather/weather_movie.html'
 		return { "response": response, "urls": [nhk_weather,] }
 	else:
     # 関数を使わない場合はメッセージをそのまま返す
-		return { "response": message.get("content"), "urls": ["",] }
+		response = { "response": message.get("content"), "urls": ["",] }
+		if callback is not None:
+			callback(json.dumps(response))
+			callback(None)
+		return response
 
+
+def dummy_callback(response=None):
+    if response is not None:
+        print(f'response:{response}')
+
+    
 def main(text):
-	return chat(text)
+    # non-streaming
+	chat(text)
+	# streaming
+	return chat(text, dummy_callback)
+
 
 question="横浜の今日の天気を詳しく教えてください"
 prompt=f'''
