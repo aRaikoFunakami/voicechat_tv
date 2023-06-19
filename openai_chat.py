@@ -183,18 +183,17 @@ def chat(text, callback=None):
                     if event.choices[0]["finish_reason"] != "stop":
                         res = { "response": event.choices[0]["delta"]["content"], "urls": [""]}
                         callback(json.dumps(res))
-                        # callback(event.choices[0]["delta"]["content"])
                         final_response += res["response"]
                         
                     else:
                         callback(None) 
+            # END: for event in response:
         except openai.error.OpenAIError as e:
             error_string = f"An error occurred: {e}"
             print(error_string)
             callback(error_string) 
             callback(None)
             return error_string
-        # END: for event in response:
         
         # 関数を利用しない場合は終了
         if(not function_call):
@@ -253,8 +252,6 @@ def chat(text, callback=None):
             callback(error_string) 
             callback(None)
             return { "response": error_string, "urls": ["",] }
-        
-
     # END: if callback is None:
 
 
