@@ -130,7 +130,8 @@ def chat(text, callback=None):
             logging.info("関数の回答:%s", res)
             try:
                 second_response = openai.ChatCompletion.create(
-                    model="gpt-4-0613",
+                    #model="gpt-4-0613",
+                    model="gpt-3.5-turbo-0613",
                     temperature = 0.2,
                     messages=[
                         {"role": "user", "content": prompt},
@@ -224,7 +225,8 @@ def chat(text, callback=None):
         logging.info("関数の回答:%s", res)
         try:
             second_response = openai.ChatCompletion.create(
-                model="gpt-4-0613",
+                #model="gpt-4-0613",
+                model="gpt-3.5-turbo-0613",
                 temperature = 0.2,
                 stream = True,  # this time, we set stream=True
                 messages=[
