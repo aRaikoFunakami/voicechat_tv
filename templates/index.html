@@ -77,7 +77,11 @@
             /* テキストを折り返す */
             display: none;
             /* 最初は非表示にする */
-            justify-content: flex-end; /* This will align items to the start of the container */
+        }
+
+        #answer_text {
+            /*overflow: auto;*/
+            overflow-y: scroll;
         }
 
         #container {
@@ -90,13 +94,8 @@
 
         #characterImage {
             /*...existing styles...*/
-            position: absolute; /* make the image position absolute */
-            top: 25%;
-            left: 10%;
-            width: 200px;
-            height: auto;
             z-index: 100;
-            display: none;
+            display: flex;
         }
     </style>
     <script src="playAudioByVoiceVox.js" type="module"></script>
@@ -107,9 +106,10 @@
     <!-- please get a video from  https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.720p.webm -->
     <video id="video" src="http://127.0.0.1:8001/Big_Buck_Bunny_4K.webm.720p.webm" autoplay loop muted></video> 
     <!--  <video id="video" src="http://127.0.0.1:8001/video2.mp4" autoplay loop muted></video> -->
-    <img id="characterImage" src="http://127.0.0.1:8001/zunmon020.png">
+    <!-- https://zunko.jp/con_illust.html -->
     <div id="answer">
-
+        <img id="characterImage" src="http://127.0.0.1:8001/zunmon020.png">
+        <div id="answer_text"></div>
     </div>
     <div id="container">
         <button id="microphone"></button>

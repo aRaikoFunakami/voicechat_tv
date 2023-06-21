@@ -9,6 +9,7 @@ const microphone = document.getElementById('microphone');
 microphone.disabled = true; // クリック禁止　スペースのみOK
 const status = document.getElementById('status');
 const answer = document.getElementById('answer');
+const answer_text = document.getElementById('answer_text');
 const characterImage = document.getElementById('characterImage');
 
 window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -57,10 +58,8 @@ function screenshotImage() {
 	return image;
 }
 
-// element 領域をアニメーションさせながら消す
 //
-// element.style.display = 'none'
-// element.innerHTML=''
+// element 領域をアニメーションさせながら消す
 //
 function hide_element_with_animation(element) {
 	setTimeout(() => {
@@ -76,7 +75,6 @@ function hide_element_with_animation(element) {
 			element.style.transition = initialTransition;
 			// 要素を隠す
 			element.style.display = 'none';
-			element.innerHTML = "";
 		}, 1500);
 	}, 1000);
 }
@@ -127,17 +125,14 @@ recognition.addEventListener('result', (e) => {
 	if (text.includes("スクリーンショット")) {
 		console.log("スクリーンショットを実行する");
 		// answer 領域を表示する
-		answer.style.display = 'block';
-		characterImage.style.display = 'blcok';
+		answer.style.display = 'flex';
 		// screenshot を撮影して answerへ表示
 		const image = screenshotImage();
-		answer.innerHTML = "";
-		answer.appendChild(image);
+		answer_text.innerHTML = "";
 		// status をアップデート
 		status.innerText = 'スクリーンショットを撮影しました';
 		// answer 領域をアニメーションさせながら消す
 		hide_element_with_animation(answer);
-		characterImage.style.display = 'none';
 		return;
 	}
 
@@ -159,7 +154,6 @@ recognition.addEventListener('result', (e) => {
 	// 音声読み上げ終了したら表示していたエリアを消す
 	function endSpeakCallback() {
 		hide_element_with_animation(answer);
-		characterImage.style.display = 'none';
 		status.innerText = '音声再生終了';
 		video.muted = false;
 		if(zundamon)
@@ -215,11 +209,11 @@ recognition.addEventListener('result', (e) => {
 		let jsonData = JSON.parse(event.data);
 		const data = jsonData.response;
 		// ストリームで受け取ったデータを徐々に表示する
-		answer.style.display = 'block';
-		characterImage.style.display = 'block';
-		answer.innerHTML = answer.innerHTML + data;
+		answer.style.display = 'flex';
+		// データの表示場所は answer_text 
+		answer_text.innerHTML = answer_text.innerHTML + data;
 		// レスポンス領域を自動スクロール
-		answer.scrollTop = answer.scrollHeight;
+		answer_text.scrollTop = answer_text.scrollHeight;
 		// ストリームデータを音声再生
 		buffer += data;
 		// デリミタが届いたか、バッファが最大サイズを超えたらバッファを読み上げてバッファを空にする
@@ -242,6 +236,8 @@ recognition.addEventListener('result', (e) => {
 
 	eventSource.onopen = function (event) {
 		console.log('Connection opened');
+		// 新しい接続のタイミングで説明内容は初期化
+		answer_text.innerHTML = "";
 		status.innerText = `"${text}" をサーバーに送信しています...`;
 	};
 });
@@ -276,9 +272,8 @@ function startProcessing() {
 	}
 	// answer 画面が表示されている場合は消す
 	if (answer.style.display != 'none'){
-		answer.innerText = "";
+		answer_text.innerText = "";
 		answer.style.display = 'none';
-		characterImage.style.display = 'none';
 	}
 	//
 	// 音声認識処理
