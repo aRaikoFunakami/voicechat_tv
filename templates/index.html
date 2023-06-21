@@ -104,9 +104,12 @@
 
 <body>
     <!-- please get a video from  https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.720p.webm -->
-    <video id="video" src="http://127.0.0.1:8001/Big_Buck_Bunny_4K.webm.720p.webm" autoplay loop muted></video> 
-    <!--  <video id="video" src="http://127.0.0.1:8001/video2.mp4" autoplay loop muted></video> -->
-    <!-- https://zunko.jp/con_illust.html -->
+    <video id="video" src="http://127.0.0.1:8001/Big_Buck_Bunny_4K.webm.720p.webm" autoplay loop muted></video>
+
+    <!-- 
+            ずんだもんのイラスト https://zunko.jp/con_illust.html 
+            VOICEVOX:ずんだもん
+    -->
     <div id="answer">
         <img id="characterImage" src="http://127.0.0.1:8001/zunmon020.png">
         <div id="answer_text"></div>
@@ -115,6 +118,53 @@
         <button id="microphone"></button>
         <p id="status">音声認識を開始してください</p>
     </div>
+
+    <script>
+        // ビデオのURLリストを用意します。
+        // 各ビデオのURLをこのリストに追加します。
+        var videoUrls = [
+            "http://127.0.0.1:8001/Big_Buck_Bunny_4K.webm.720p.webm",
+            "http://127.0.0.1:8001/video2.mp4",
+            //... more URLs if needed
+        ];
+
+        // キーボードのキーが押されたときのイベントリスナーを設定します。
+        // 各ビデオの再生時間を保持する配列を作成します。
+        var videoTimes = new Array(videoUrls.length).fill(0);
+
+        // 現在再生中のビデオのインデックスを保持します。
+        var currentVideoIndex = 0;
+
+        // キーボードのキーが押されたときのイベントリスナーを設定します。
+        document.addEventListener('keydown', function (event) {
+            // 1から9までのキーボードのキーが押されたかをチェックします。
+            if (event.keyCode >= 49 && event.keyCode <= 57) {
+                // キーの番号に該当するビデオを取得します。
+                var videoIndex = event.keyCode - 49; // 49 is the keyCode for '1'
+
+                // 該当のビデオが存在する場合のみビデオのsrc属性を更新します。
+                if (videoUrls[videoIndex] !== undefined) {
+                    var videoElement = document.getElementById('video');
+
+                    // 現在再生中のビデオの再生時間を保存します。
+                    videoTimes[currentVideoIndex] = videoElement.currentTime;
+
+                    // ビデオのsrc属性を更新します。
+                    videoElement.src = videoUrls[videoIndex];
+
+                    // ビデオの再生位置を該当ビデオの前回の再生時間に設定します。
+                    videoElement.currentTime = videoTimes[videoIndex];
+
+                    // ビデオの再生を開始します。
+                    videoElement.play();
+
+                    // 現在再生中のビデオのインデックスを更新します。
+                    currentVideoIndex = videoIndex;
+                }
+            }
+        });
+    </script>
+
 </body>
 
 </html>
