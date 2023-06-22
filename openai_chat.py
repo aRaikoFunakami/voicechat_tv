@@ -106,7 +106,7 @@ def chat(text, callback=None):
         except openai.error.OpenAIError as e:
             error_string = f"An error occurred: {e}"
             print(error_string)
-            return error_string
+            return { "response": error_string, "finish_reason": "stop" }
         
         message = response["choices"][0]["message"]
         logging.info("message: %s", message)
@@ -146,11 +146,11 @@ def chat(text, callback=None):
             except openai.error.OpenAIError as e:
                 error_string = f"An error occurred: {e}"
                 print(error_string)
-                return error_string
+                return { "response": error_string, "finish_reason": "stop" }
         
-            return second_response.choices[0]["message"]["content"].strip()
+            return { "response": second_response.choices[0]["message"]["content"].strip(), "finish_reason": "stop" }
         else:
-            return { "response": message.get("content"), "urls": ["",] }
+            return { "response": message.get("content"), "finish_reason": "stop" }
     # Streaming
     else:
         f_call = {'name': '', 'arguments': ''}
@@ -166,8 +166,9 @@ def chat(text, callback=None):
             )
             function_call = None
             for event in response:
+                #print(f'event.choices[0] = {event.choices[0]}')
                 delta = event.choices[0]["delta"]
-                if (delta == {}):
+                if (delta == {} and event.choices[0]["finish_reason"] == "function_call"):
                     continue
                 
                 # 関数が見つかった場合は関数の情報を完成させて呼び出す
@@ -182,23 +183,25 @@ def chat(text, callback=None):
                 # 関数を使わない場合
                 else:
                     if event.choices[0]["finish_reason"] != "stop":
-                        res = { "response": event.choices[0]["delta"]["content"], "urls": [""]}
+                        res = { "response": event.choices[0]["delta"]["content"], "finish_reason": ""}
                         callback(json.dumps(res))
                         final_response += res["response"]
-                        
                     else:
+                        res = { "response": "", "finish_reason": "stop"}
+                        callback(json.dumps(res))
                         callback(None) 
             # END: for event in response:
+            
         except openai.error.OpenAIError as e:
             error_string = f"An error occurred: {e}"
             print(error_string)
             callback(error_string) 
             callback(None)
-            return error_string
+            return { "response":error_string, "finish_reason": "stop"}
         
         # 関数を利用しない場合は終了
         if(not function_call):
-            return { "response":final_response, "urls": [""]}
+            return { "response":final_response, "finish_reason": "stop"}
         
         # message を構築
         message = {
@@ -242,18 +245,20 @@ def chat(text, callback=None):
             final_response = ""
             for event in second_response:
                 if event.choices[0]["finish_reason"] != "stop":
-                    res = { "response": event.choices[0]["delta"]["content"], "urls":[""]}
+                    res = { "response": event.choices[0]["delta"]["content"], "finish_reason": ""}
                     callback(json.dumps(res))
                     final_response = final_response + res["response"]
                 else:
+                    res = { "response": "", "finish_reason": "stop"}
+                    callback(json.dumps(res))                   
                     callback(None)
-            return { "response": final_response, "urls": ["",] }
+            return { "response": final_response, "finish_reason": "stop"}
         except openai.error.OpenAIError as e:
             error_string = f"An error occurred: {e}"
             print(error_string)
             callback(error_string) 
             callback(None)
-            return { "response": error_string, "urls": ["",] }
+            return { "response": error_string, "finish_reason": "stop" }
     # END: if callback is None:
 
 

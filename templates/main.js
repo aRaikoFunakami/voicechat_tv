@@ -16,7 +16,7 @@ window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogn
 const recognition = new SpeechRecognition();
 recognition.lang = 'ja-JP';
 
-// zundamon
+// zundamon or webseech
 const zundamon = true;
 let zundamon_speaking = false;
 var zundamon_controller = null;
@@ -146,53 +146,58 @@ recognition.addEventListener('result', (e) => {
 	let endCallback = null;    // 全ての読み上げが終わった後に呼び出すコールバック関数
 	const maxBufferSize = 40; // 最大バッファサイズ（これを超えたら読み上げを開始する）
 	let delimiters = null; // 読み上げを開始するタイミングは デリミタを受信する、もしくはmaxBufferSizeを越えた場合
-	if(!zundamon)
-		delimiters = ['。', '.']; 
+	if (!zundamon)
+		delimiters = ['。', '.'];
 	else
-		delimiters =  ['。','、',',', '.'];  // ずんだもんの場合には '、' や '', 'で切っても読みがおかしくならない
-	
+		delimiters = ['。', '、', ',', '.'];  // ずんだもんの場合には '、' や '', 'で切っても読みがおかしくならない
+
 	// 音声読み上げ終了したら表示していたエリアを消す
 	function endSpeakCallback() {
 		hide_element_with_animation(answer);
 		status.innerText = '音声再生終了';
 		video.muted = false;
-		if(zundamon)
+		if (zundamon)
 			zundamon_speaking = false;
 	}
 
+	// Ugh!: 美しくない...
+	let speaking_counter = 0;
 	// バッファのデータの読み上げとクリア
-	function speakBuffer(callback) {
+	function speakBuffer(callback, buffer, finish) {
 		// 全ての読み上げが終わった後に呼び出すコールバック関数を設定
 		const endCallback = callback;
 		// 音声再生前にビデオはミュートしてから再生する
 		video.muted = true;
 		status.innerText = "[ミュート中]"
 		status.innerText = status.innerText + '音声再生中';
-		// バッファにデータが残っていたら再生する
-		if (buffer.trim() !== '' && !zundamon) {
-			const utterThis = new SpeechSynthesisUtterance(buffer);
-			// バッファにデータが残っていたら読み上げを続ける
-			utterThis.onend = () => {
-				// データが残っていれば読み上げる
-				if (buffer !== '') {
-					speakBuffer();
-				}
-				activeUtterances--;
-				if (activeUtterances === 0 && typeof endCallback === 'function') {
-					endCallback();
-					status.innerText = '音声再生終了';
-				}
-			};
-			// speak メソッドを呼び出す前にカウンタをインクリメント
-			activeUtterances++;
+		// web speach での再生
+		if (!zundamon) {
+			function speak(text) {
+				const utterThis = new SpeechSynthesisUtterance(text);
+				utterThis.onend = function (event) {
+					speaking_counter = speaking_counter - 1;
+					console.log(speaking_counter + " " + utterThis.text); // data can be accessed here
+					if (speaking_counter <= 0) {
+						callback();
+					}
+				};
+				synth.speak(utterThis);
+			}
+			if(buffer == ""&& finish == "stop"){
+				return;
+			}
+			speak(buffer);
+			speaking_counter = speaking_counter + 1;
+			console.log(speaking_counter + " " + buffer); // data can be accessed here
+		// ずんだもんでの再生
+		} else {
 			// 実際の読み上げ処理を行う。バッファ内のデータは読み上げ処理用のバッファに追加済みなのでクリアする
-			synth.speak(utterThis);
-			buffer = '';
-		}else{
-			// 実際の読み上げ処理を行う。バッファ内のデータは読み上げ処理用のバッファに追加済みなのでクリアする
-			playAudioByVoiceVox(buffer, zundamon_controller.signal, endCallback);
+			if (finish != "stop") {
+				callback = null;
+			}
+			playAudioByVoiceVox(buffer, zundamon_controller.signal, callback);
+
 			zundamon_speaking = true;
-			buffer = '';   
 		}
 	}
 
@@ -208,6 +213,7 @@ recognition.addEventListener('result', (e) => {
 		// event.dataをJSONにパース
 		let jsonData = JSON.parse(event.data);
 		const data = jsonData.response;
+		const finish = jsonData.finish_reason;
 		// ストリームで受け取ったデータを徐々に表示する
 		answer.style.display = 'flex';
 		// データの表示場所は answer_text 
@@ -217,8 +223,10 @@ recognition.addEventListener('result', (e) => {
 		// ストリームデータを音声再生
 		buffer += data;
 		// デリミタが届いたか、バッファが最大サイズを超えたらバッファを読み上げてバッファを空にする
-		if (delimiters.includes(data) || buffer.length >= maxBufferSize) {
-			speakBuffer(endSpeakCallback);
+		if (jsonData.finish_reason == "stop" || delimiters.includes(data) || buffer.length >= maxBufferSize) {
+			// console.log("data:" + data + "finish:" + finish);
+			speakBuffer(endSpeakCallback, buffer, finish);
+			buffer = "";
 		}
 	};
 
@@ -229,7 +237,7 @@ recognition.addEventListener('result', (e) => {
 		// ステータス変更
 		status.innerText = 'サーバーとの接続が終了しました。';
 		// バッファが残っている場合はすべて読み上げる
-		speakBuffer(endSpeakCallback);
+		//speakBuffer(endSpeakCallback);
 		// ボリュームを戻す
 		//video.muted = false;
 	};
@@ -258,11 +266,11 @@ function startProcessing() {
 		status.innerText = '読み上げをキャンセルしました';
 		video.muted = false;
 	}
-	if (zundamon_speaking){
-      // abort関数でシグナルオブジェクトに中断を送信
+	if (zundamon_speaking) {
+		// abort関数でシグナルオブジェクトに中断を送信
 		zundamon_controller.abort();
 		console.log('Request aborted!');
-		zundamon_controller = new AbortController(); 
+		zundamon_controller = new AbortController();
 	}
 	// ネットワークが接続中なら切る
 	if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
@@ -271,7 +279,7 @@ function startProcessing() {
 
 	}
 	// answer 画面が表示されている場合は消す
-	if (answer.style.display != 'none'){
+	if (answer.style.display != 'none') {
 		answer_text.innerText = "";
 		answer.style.display = 'none';
 	}
