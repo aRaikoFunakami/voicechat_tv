@@ -6,6 +6,7 @@ import flask
 import queue
 import logging
 import openai_chat
+import openai_chatPDF
 import threading
 
 # フリー素材: https://icooon-mono.com/
@@ -19,18 +20,20 @@ def input():
     qa_stream = queue.Queue() 
     def dummy_callback(response=None):
         qa_stream.put(response)
-        if response is not None:
-            logging.info("response:%s",response)
-            
+        #if response is not None:
+        #    logging.info("response:%s",response)
+
     # callbackの処理を並行して動かすので別スレッドで ChatGPT に問い合わせる
     producer_thread = threading.Thread(target=openai_chat.chat, args=(input,dummy_callback))
-    producer_thread.start()   
+    # LEXUS のマニュアルについて回答する
+    # producer_thread = threading.Thread(target=openai_chatPDF.chat, args=(input,dummy_callback))
+    producer_thread.start() 
 
-    # 
+    #
     def stream():
         while True:
             msg = qa_stream.get()
-            print(msg)
+            # print(msg)
             if msg is None:
                 break 
             yield f'data: {msg}\n\n'
@@ -42,5 +45,5 @@ def input():
 def index():
     return render_template('index.html')
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s:%(filename)s:%(funcName)s - %(message)s")    
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s:%(filename)s:%(funcName)s - %(message)s")
 app.run(port=8001, debug=True)

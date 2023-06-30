@@ -19,9 +19,10 @@
             bottom: 0;
             min-width: 100%;
             min-height: 100%;
-            width: auto;
+            width: 100%;
             height: auto;
             z-index: -100;
+            object-fit: contain;
         }
 
         #microphone {
@@ -71,7 +72,7 @@
             /* 領域内のコンテンツがオーバーフローした場合にスクロールバーを表示 */
             font-weight: bold;
             /* テキストを太く */
-            font-size: 46px;
+            font-size: 48px;
             /* フォントサイズを大きく */
             word-wrap: break-word;
             /* テキストを折り返す */
@@ -97,6 +98,7 @@
             z-index: 100;
             display: flex;
         }
+
     </style>
     <script src="playAudioByVoiceVox.js" type="module"></script>
     <script src="main.js" type="module"></script>
@@ -104,7 +106,7 @@
 
 <body>
     <!-- please get a video from  https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.720p.webm -->
-    <video id="video" src="http://127.0.0.1:8001/Big_Buck_Bunny_4K.webm.720p.webm" autoplay loop muted></video>
+    <video id="video" src="http://127.0.0.1:8001/navi_mapbox.mp4" autoplay loop muted></video>
 
     <!-- 
             ずんだもんのイラスト https://zunko.jp/con_illust.html 
@@ -122,7 +124,10 @@
     <script>
         // ビデオのURLリストを用意します。
         // 各ビデオのURLをこのリストに追加します。
+        // https://www.youtube.com/watch?v=TpsaBnfQVuM
         var videoUrls = [
+            "http://127.0.0.1:8001/navi_mapbox.mp4",
+            "http://127.0.0.1:8001/lexus_navi.mp4",
             "http://127.0.0.1:8001/Big_Buck_Bunny_4K.webm.720p.webm",
             "http://127.0.0.1:8001/video2.mp4",
             //... more URLs if needed
