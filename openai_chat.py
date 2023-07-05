@@ -1,13 +1,8 @@
 import openai
 import json
-import requests
 import os
 import sys
 import logging
-
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import Chroma
-from langchain.chat_models import ChatOpenAI
 
 
 # 参考資料
@@ -75,41 +70,11 @@ def load_config():
     }
 
 
-
-def get_weather_info(latitude, longitude):
-    base_url = "https://api.open-meteo.com/v1/forecast"
-    parameters = {
-        "latitude": latitude,
-        "longitude": longitude,
-        #        "current_weather": "true",
-        "hourly": "temperature_2m,relativehumidity_2m",
-        "timezone": "Asia/Tokyo"
-    }
-    response = requests.get(base_url, params=parameters)
-    if response.status_code == 200:
-        data = response.json()
-        return json.dumps(data)
-    else:
-        return None
-
-weather_function = {
-    "name": "get_weather_info",
-    "description": "緯度と経度の情報から現在の天気を取得します",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "latitude": {
-                "type": "string",
-                "description": "緯度の情報",
-            },
-            "longitude": {
-                "type": "string",
-                "description": "経度の情報",
-            },
-        },
-        "required": ["latitude", "longitude"],
-    },
-}
+#
+# カーナビについての問い合わせに
+#
+from openai_function_weather import get_weather_info
+from openai_function_weather import weather_function
 
 #
 # カーナビについての問い合わせに
@@ -257,6 +222,9 @@ def chat(text, callback = None):
     logging.info("chatstart")
     return streaming_chat(text, callback)
 
+#
+# test codes
+#
 def dummy_callback(response=None):
     if response is not None:
         logging.info(f'response:{response}')
