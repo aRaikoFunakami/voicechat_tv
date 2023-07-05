@@ -149,7 +149,7 @@ recognition.addEventListener('result', (e) => {
 	if (!zundamon)
 		delimiters = ['。', '.'];
 	else
-		delimiters = ['。', '、', ',', '.'];  // ずんだもんの場合には '、' や '', 'で切っても読みがおかしくならない
+		delimiters = ['。', '、', ',', '.', '!',':','！','：','　',' '];  // ずんだもんの場合には '、' や '', 'で切っても読みがおかしくならない
 
 	// 音声読み上げ終了したら表示していたエリアを消す
 	function endSpeakCallback() {
