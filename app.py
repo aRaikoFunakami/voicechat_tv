@@ -6,7 +6,6 @@ import flask
 import queue
 import logging
 import openai_chat
-import openai_chatPDF
 import threading
 
 # フリー素材: https://icooon-mono.com/

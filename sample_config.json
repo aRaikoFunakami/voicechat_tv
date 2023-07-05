@@ -1,3 +1,4 @@
 {
-    "openai_api_key": "Your OpenAI ID"
+    "openai_api_key": "Your OpenAI ID",
+    "hotpepper_api_key": "Your Hotpepper ID"
 }

@@ -4,15 +4,11 @@ import requests
 import os
 import sys
 import logging
-import box
-import collections
 
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores import Chroma
 from langchain.chat_models import ChatOpenAI
-from langchain.chains import ConversationalRetrievalChain
-from langchain.callbacks.base import BaseCallbackHandler
-from langchain.callbacks.manager import CallbackManager
+
 
 # 参考資料
 # https://open-meteo.com/en/docs
@@ -41,7 +37,7 @@ get_weather_info_prompt = f'''
 #入力文:
 '''
 
-get_manual_info_prompt = f'''
+get_pdf_info_prompt = f'''
 次の条件に従って入力文に回答してください
 #条件:
 簡潔に答えよ
@@ -51,9 +47,18 @@ get_manual_info_prompt = f'''
 #入力文:
 '''
 
+get_hotpepper_info_prompt = f'''
+あなたは若い女性のアナウンサーです。
+入力文から複数のレストランの情報をJSON形式で受け取ります。
+それぞれのレストランの情報を30文字以内に要約してユーザーがその店に行きたくなるキャッチーな文章で答えなさい
+#入力文:
+'''
+
+
 prompts = {
     "get_weather_info": get_weather_info_prompt,
-    "get_manual_info" : get_manual_info_prompt,
+    "get_pdf_info" : get_pdf_info_prompt,
+    "get_hotpepper_info" : get_hotpepper_info_prompt,
 }
 
 
@@ -106,130 +111,18 @@ weather_function = {
     },
 }
 
-default_persist_directory = "./chroma_split_documents"
-def get_manual_info(query):
-    persist_directory = default_persist_directory
-    config = load_config()
-    openai.api_key = config["openai_api_key"]
-    os.environ["OPENAI_API_KEY"] = openai.api_key
-    logging.info("chatstart")
-    # IF for asking OpenAI
-    global llm, embeddings, vectorstore
-    llm = ChatOpenAI(temperature=0, model_name=model01)
-    embeddings = OpenAIEmbeddings()
-    vectorstore = Chroma(embedding_function=embeddings,
-                         persist_directory=persist_directory)
-    docs = vectorstore.similarity_search(query, k=3)
-    response = ""
-    for i in docs:
-        response = response + i.page_content + "\n"
-    print(f'response:{response}')
-    return response
-
-# カーナビについての問い合わせにget_manual_infoを呼ぶ
-# 例)
-# カーナビに目的地を設定する方法を教えて
-# カーナビでYouTubeを見る方法を教えて
 #
-manualpdf_function = {
-    "name": "get_manual_info",
-    "description": "カーナビの使用方法についての質問からカーナビの使い方を取得します",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "query": {
-                "type": "string",
-                "description": "カーナビの使用方法についての質問",
-            },
-        },
-        "required": ["query"],
-    },
-}
-
-# 車についての問い合わせにget_manual_infoを呼ぶ
-# 例) 
-# 車の中のどこにUSBがあるの
+# カーナビについての問い合わせに
 #
-manualpdf_function2 = {
-    "name": "get_manual_info",
-    "description": "車の使用方法についての質問から車の使い方を取得します",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "query": {
-                "type": "string",
-                "description": "車の使用方法についての質問",
-            },
-        },
-        "required": ["query"],
-    },
-}
+from openai_function_pdf import get_pdf_info
+from openai_function_pdf import pdf_function
 
-def truncate_string(text, max):
-    if(text is None):
-        return ""
-    if len(text) > max:
-        return text[:max] + "..."
-    else:
-        return text
+#
+# ホットペッパーでレストラン情報を取得する
+#
+from openai_function_hotpepper import get_hotpepper_info
+from openai_function_hotpepper import hotpepper_function
 
-def non_streaming_chat(text):
-    # 関数と引数を決定する
-    try:
-        response = openai.ChatCompletion.create(
-            model=model01,
-            messages=[{"role": "user", "content": text}],
-            functions=[weather_function, manualpdf_function, manualpdf_function2],
-            function_call="auto",
-        )
-    except openai.error.OpenAIError as e:
-        error_string = f"An error occurred: {e}"
-        print(error_string)
-        return { "response": error_string, "finish_reason": "stop" }
-
-    message = response["choices"][0]["message"]
-    logging.info("message: %s", message)
-    # 選択した関数を実行する
-    if message.get("function_call"):
-        function_name = message["function_call"]["name"]
-        arguments=json.loads(message["function_call"]["arguments"])
-        function_response = ""
-        prompt = text
-        # 選択された関数を呼び出す
-        logging.info("選択された関数を呼び出す: %s", function_name)
-        if function_name == "get_weather_info":
-            function_response = get_weather_info(
-                latitude=arguments.get("latitude"),
-                longitude=arguments.get("longitude"),
-            )
-        #選択された関数に最適な prompt を選ぶ
-        logging.info("選択された関数に最適な prompt を選ぶ")
-        prompt = prompts[function_name] + text
-        res = truncate_string(function_response, 100)
-        logging.info("関数の回答:%s", res)
-        try:
-            second_response = openai.ChatCompletion.create(
-                model=model02,
-                temperature = 0.2,
-                messages=[
-                    {"role": "user", "content": prompt},
-                    message,
-                    {
-                        "role": "function",
-                        "name": function_name,
-                        "content": function_response,
-                    },
-                ],
-            )
-        except openai.error.OpenAIError as e:
-            error_string = f"An error occurred: {e}"
-            print(error_string)
-            return { "response": error_string, "finish_reason": "stop" }
-        logging.info("関数を使って回答: %s", second_response.choices[0]["message"]["content"].strip())
-        return { "response": second_response.choices[0]["message"]["content"].strip(), "finish_reason": "stop" }
-    else:
-        logging.info("ChatGPTが回答: %s", message.get("content"))
-        return { "response": message.get("content"), "finish_reason": "stop" }
 
 def call_defined_function(message):
     logging.info(message)
@@ -241,8 +134,10 @@ def call_defined_function(message):
             latitude=arguments.get("latitude"),
             longitude=arguments.get("longitude"),
         )
-    elif function_name == "get_manual_info":
-        return get_manual_info(query=arguments.get("query"))
+    elif function_name == "get_pdf_info":
+        return get_pdf_info(arguments.get("query"))
+    elif function_name == "get_hotpepper_info":
+        return get_hotpepper_info(arguments)
     else:
         return None
 
@@ -258,7 +153,7 @@ def streaming_chat(text, callback):
         response = openai.ChatCompletion.create(
             model=model01,
             messages=[{"role": "user", "content": text}],
-            functions=[weather_function, manualpdf_function, manualpdf_function2],
+            functions=[weather_function, pdf_function, hotpepper_function],
             function_call="auto",
             stream=True
         )
@@ -281,11 +176,11 @@ def streaming_chat(text, callback):
             else:
                 if event.choices[0]["finish_reason"] != "stop":
                     res = { "response": event.choices[0]["delta"]["content"], "finish_reason": ""}
-                    callback(json.dumps(res))
+                    callback(json.dumps(res, ensure_ascii=False))
                     final_response += res["response"]
                 else:
                     res = { "response": "", "finish_reason": "stop"}
-                    callback(json.dumps(res))
+                    callback(json.dumps(res, ensure_ascii=False))
                     callback(None)
             # END: for event in response:
 
@@ -312,14 +207,14 @@ def streaming_chat(text, callback):
         "role": "assistant"
     }
     function_response = call_defined_function(message)
-    logging.info("関数の回答:%s", truncate_string(function_response, 100))
+    logging.info("関数の回答:%s", function_response)
     #
     # ChatGPT呼び出しの初期化
     #
     prompt = text
     function_name = message["function_call"]["name"]
     #選択された関数に最適な prompt を選ぶ
-    logging.info("選択された関数に最適な prompt を選ぶ")
+    logging.info(f"選択された関数に最適な prompt を選ぶ: {function_name}")
     prompt = prompts[function_name] + text
 
     try:
@@ -341,11 +236,11 @@ def streaming_chat(text, callback):
         for event in second_response:
             if event.choices[0]["finish_reason"] != "stop":
                 res = { "response": event.choices[0]["delta"]["content"], "finish_reason": ""}
-                callback(json.dumps(res))
+                callback(json.dumps(res, ensure_ascii=False))
                 final_response = final_response + res["response"]
             else:
                 res = { "response": "", "finish_reason": "stop"}
-                callback(json.dumps(res))
+                callback(json.dumps(res, ensure_ascii=False))
                 callback(None)
         logging.info("%s経由で回答しました: %s", function_name, final_response)
         return { "response": final_response, "finish_reason": "stop"}
@@ -360,27 +255,17 @@ def chat(text, callback = None):
     config = load_config()
     openai.api_key = config["openai_api_key"]
     logging.info("chatstart")
-    if callback is None:
-        return non_streaming_chat(text)
-    else:
-        return streaming_chat(text, callback)
-
-
+    return streaming_chat(text, callback)
 
 def dummy_callback(response=None):
     if response is not None:
         logging.info(f'response:{response}')
 
+test_questions = []
+test_prompts = []
 
-def main(text):
-    # non-streaming
-    # print(chat(text))
-    # streaming
-    print(chat(text, dummy_callback))
-
-
-question1 = "横浜の今日の天気を詳しく教えてください"
-prompt1 = f'''
+test_questions.append("横浜の今日の天気を詳しく教えてください")
+test_prompts.append(f'''
 あなたは天気を説明するアナウンサーです
 次の条件に従って入力文に回答してください
 #条件:
@@ -388,26 +273,37 @@ prompt1 = f'''
 雨の可能性があれば傘をもって出かけるべきだと回答する
 10文字以内で答えよ
 #入力文:
-{question1}
-'''
+{test_questions[0]}
+''')
 
-question2 = "織田信長について答えよ"
-prompt2 = f'''
+test_questions.append("織田信長について答えよ")
+test_prompts.append(f'''
 10文字以内で答えよ
 #入力文:
-{question2}
-'''
+{test_questions[1]}
+''')
 
-question3 = "インターネットを使いたい"
-prompt3 = f'''
+test_questions.append("カーナビでインターネットを使いたい")
+test_prompts.append(f'''
 100文字以内で答えよ
 #入力文:
-{question3}
-'''
+{test_questions[2]}
+''')
+
+test_questions.append("横浜の桜木町あたりで美味しいホルモンの店を３件紹介して")
+test_prompts.append(f'''
+100文字以内で答えよ
+#入力文:
+{test_questions[3]}
+''')
+
+def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(filename)s:%(funcName)s[%(lineno)d] - %(message)s",
+    )
+    for prompt in test_prompts:
+        print(chat(prompt, dummy_callback))
 
 if __name__ == '__main__':
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s:%(name)s - %(message)s")
-    main(prompt1)
-    main(prompt2)
-    main(prompt3)
+    main()
