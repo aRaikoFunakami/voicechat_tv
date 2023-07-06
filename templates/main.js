@@ -46,7 +46,7 @@ window.addEventListener('keypress', (e) => {
 	else if (e.code === 'KeyZ') {
 		// https://segakuin.com/html/attribute/lang.html
 		recognition.lang = 'zh-CN';
-		updateStatus( 'Language:' + recognition.lang, 2);
+		updateStatus('Language:' + recognition.lang, 2);
 	}
 });
 //window.addEventListener('keyup', (e) => {
@@ -372,7 +372,15 @@ function startProcessing() {
 	// Micボタンの色味変更
 	microphone.style.filter = "brightness(0%) sepia(1000%) hue-rotate(0deg)";
 	video.muted = true;
-	updateStatus('Voice recognition...', 3)
+	if (recognition.lang == 'en-US') {
+		updateStatus('Voice recognition in progress...', 3);
+	}
+	else if (recognition.lang == 'ja-JP') {
+		updateStatus('音声認識中です...', 3);
+	}
+	else if (recognition.lang == 'zh-CN') {
+		updateStatus('语音识别正在进行中...', 3);
+	}
 	//status.innerText = "[ミュート中]"
 	//status.innerText = status.innerText + '音声認識を開始しています...';
 	console.log('音声認識を開始する');

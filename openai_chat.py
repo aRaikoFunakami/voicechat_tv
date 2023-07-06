@@ -96,7 +96,16 @@ def remove_non_phonetic_characters(text):
 def call_defined_function(message):
     logging.info(message)
     function_name = message["function_call"]["name"]
-    arguments=json.loads(message["function_call"]["arguments"])
+    function_args = message["function_call"]["arguments"]
+    #
+    #function_name == 'python' など予想外の関数名で呼び出されることがある
+    #その場合、arguments も想定外の内容が入っているのでエラー回避用の処理
+    #
+    try:
+        arguments=json.loads(function_args)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
     if(is_prompt_debug):
         print(f"選択された関数を呼び出す: {function_name}, {arguments}")
     if function_name == "get_weather_info":
@@ -239,6 +248,10 @@ def streaming_chat(input, callback):
     }
     function_response = call_defined_function(message)
     logging.info("関数の回答:%s", function_response)
+    if(function_response is None):
+        res = { "response": translate_text("サーバー側でエラーが発生しました", input_lang), "finish_reason": "stop"}
+        callback(json.dumps(res, ensure_ascii=False))
+        callback(None)
     #
     # ChatGPT呼び出しの初期化
     #
