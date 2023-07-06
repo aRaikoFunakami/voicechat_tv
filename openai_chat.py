@@ -3,6 +3,8 @@ import json
 import os
 import sys
 import logging
+import langid
+
 
 
 # 参考資料
@@ -15,6 +17,8 @@ import logging
 #
 # Config
 #
+is_prompt_debug = True
+
 #model01="gpt-4-0613"
 model01="gpt-3.5-turbo-0613"
 #model02="gpt-4-0613"
@@ -22,20 +26,18 @@ model02="gpt-3.5-turbo-0613"
 
 get_weather_info_prompt = f'''
 あなたは天気を説明するアナウンサーです
-次の条件に従って入力文に回答してください
-#条件:
-温度19度や湿度20%といった数字は今日の天気の場合もしくは大きな変動がある場合だけ使う
-それ以外ではできれるだけ使わない
-具体的な数字の代わりに暑苦しい、肌寒い、など感覚的な回答を行う
-雨の可能性があれば傘をもって出かけるべきだと回答する
-必ず50文字以内で答えよ
+次の制約事項に従って入力文に簡潔に回答してください
+#制約事項:
+- 温度19度や湿度20%といった数字は今日の天気の場合もしくは大きな変動がある場合だけ使う
+- 具体的な数字の代わりに暑苦しい、肌寒い、など感覚的な回答を行う
+- 雨の可能性があれば傘をもって出かけるべきだと回答する
+- 必ず30文字以内で答えよ
 #入力文:
 '''
 
 get_pdf_info_prompt = f'''
-次の条件に従って入力文に回答してください
+次の条件に従って入力文に簡潔に回答してください
 #条件:
-簡潔に答えよ
 複数の方法がある場合にはできるだけ複数の方法を答えよ
 絶対に50文字以内で答えよ
 わからない場合に嘘をついてはいけない。わからない場合にはわからないと答える。
@@ -43,9 +45,8 @@ get_pdf_info_prompt = f'''
 '''
 
 get_hotpepper_info_prompt = f'''
-あなたは若い女性のアナウンサーです。
 入力文から複数のレストランの情報をJSON形式で受け取ります。
-それぞれのレストランの情報を30文字以内に要約してユーザーがその店に行きたくなるキャッチーな文章で答えなさい
+おもわず行きたくなるうたい文句でレストランを簡潔に紹介しなさい。
 #入力文:
 '''
 
@@ -93,7 +94,8 @@ def call_defined_function(message):
     logging.info(message)
     function_name = message["function_call"]["name"]
     arguments=json.loads(message["function_call"]["arguments"])
-    logging.info("選択された関数を呼び出す: %s", function_name)
+    if(is_prompt_debug):
+        print(f"選択された関数を呼び出す: {function_name}, {arguments}")
     if function_name == "get_weather_info":
         return get_weather_info(
             latitude=arguments.get("latitude"),
@@ -102,22 +104,71 @@ def call_defined_function(message):
     elif function_name == "get_pdf_info":
         return get_pdf_info(arguments.get("query"))
     elif function_name == "get_hotpepper_info":
+        #キーワードは日本語に変換する
+        arguments['keyword'] = translate_text(arguments['keyword'], 'ja')
         return get_hotpepper_info(arguments)
     else:
         return None
 
-def streaming_chat(text, callback):
+# List of ISO 639-1 codes
+# https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes
+#
+ISO639 = {
+    'ja': 'Japanese',
+    'en': 'English',
+    'zh': 'Chinese',
+}
+defualt_language = 'English'
+
+def translate_text(text, lang):
+    from_lang_id = langid.classify(text)[0]
+    logging.info('from:%s(%s), to:%s(%s)',from_lang_id, ISO639[from_lang_id], lang, ISO639[lang])
+    lang_to = ISO639.get(lang,defualt_language)
+    lang_from = ISO639.get(from_lang_id, defualt_language)
+    # lang に翻訳する
+    if from_lang_id != lang:
+        logging.info("%sに翻訳する:%s", ISO639.get(lang,defualt_language), text)
+        completion = openai.ChatCompletion.create(
+                # モデルを選択
+                model     = "gpt-3.5-turbo-0613",
+                # メッセージ
+                messages  = [
+                        {"role": "system", "content": f'You are a helpful assistant that translates {lang_from} to {lang_to}.'},
+                        {"role": "user", "content": f'Translate the following {lang_from} text to {lang_to} :{text}. And Output only translated text'}
+                        ] ,
+                max_tokens  = 1024,             # 生成する文章の最大単語数
+                n           = 1,                # いくつの返答を生成するか
+                stop        = None,             # 指定した単語が出現した場合、文章生成を打ち切る
+                temperature = 0,                # 出力する単語のランダム性（0から2の範囲） 0であれば毎回返答内容固定
+            )
+        text = completion.choices[0].message.content
+    #
+    if(is_prompt_debug):
+        print(f"{lang_from}から{lang_to}に翻訳した:{text}")
+    return text
+
+def streaming_chat(input, callback):
     f_call = {'name': '', 'arguments': ''}
     final_response = ""
     #
+    # 言語特定して多言語対応する
+    # ja: Japanese
+    # en: English
+    #
+    # 英語の場合には日本語に変換してから進める
+    # function calling 毎のほうが良いかもしれない
+    input_lang = langid.classify(input)[0]
+    prompt_1 = translate_text("簡潔に答えよ。 ", input_lang) + input
+
     # 関数と引数を決定する
     # 関数を呼び出さない場合には ChatGPT が直接回答を返す
     #
     try:
-        text = "50文字以内で答えよ" + text
+        if(is_prompt_debug):
+            print(f'prompt: {prompt_1}')
         response = openai.ChatCompletion.create(
             model=model01,
-            messages=[{"role": "user", "content": text}],
+            messages=[{"role": "user", "content": prompt_1}],
             functions=[weather_function, pdf_function, hotpepper_function],
             function_call="auto",
             stream=True
@@ -176,19 +227,28 @@ def streaming_chat(text, callback):
     #
     # ChatGPT呼び出しの初期化
     #
-    prompt = text
+
     function_name = message["function_call"]["name"]
     #選択された関数に最適な prompt を選ぶ
     logging.info(f"選択された関数に最適な prompt を選ぶ: {function_name}")
-    prompt = prompts[function_name] + text
+    prompt_2 = f"絶対に{ISO639.get(input_lang, defualt_language)}で答えよ" + prompts[function_name] + input
+
+    #
+    # 入力文と同じ言語で回答文を作成する
+    #
+    prompt_2 = translate_text(prompt_2, input_lang)
+    # text はここでかならず land_id になっていないとおかしい
+    logging.info("prompt: %s, lang_id:%s", prompt_2, input_lang)
 
     try:
+        if(is_prompt_debug):
+            print(f'prompt: {prompt_2}')
         second_response = openai.ChatCompletion.create(
             model=model02,
             temperature = 0.2,
             stream = True,  # this time, we set stream=True
             messages=[
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": prompt_2},
                 message,
                 {
                     "role": "function",
@@ -229,45 +289,20 @@ def dummy_callback(response=None):
     if response is not None:
         logging.info(f'response:{response}')
 
-test_questions = []
-test_prompts = []
-
-test_questions.append("横浜の今日の天気を詳しく教えてください")
-test_prompts.append(f'''
-あなたは天気を説明するアナウンサーです
-次の条件に従って入力文に回答してください
-#条件:
-温度19度や湿度20%といった数字はできるだけ使わず、暑苦しい、肌寒い、など感覚的な回答を行う
-雨の可能性があれば傘をもって出かけるべきだと回答する
-10文字以内で答えよ
-#入力文:
-{test_questions[0]}
-''')
-
-test_questions.append("織田信長について答えよ")
-test_prompts.append(f'''
-10文字以内で答えよ
-#入力文:
-{test_questions[1]}
-''')
-
-test_questions.append("カーナビでインターネットを使いたい")
-test_prompts.append(f'''
-100文字以内で答えよ
-#入力文:
-{test_questions[2]}
-''')
-
-test_questions.append("横浜の桜木町あたりで美味しいホルモンの店を３件紹介して")
-test_prompts.append(f'''
-100文字以内で答えよ
-#入力文:
-{test_questions[3]}
-''')
+test_prompts = [
+#    '横浜の明日の天気を教えてください',
+#    '織田信長について教えて下さい',
+#    'カーナビでインターネットを使いたい',
+#    '桜木町の美味しいカフェを教えてください',
+#   'Let me know what the weather will be like in Yokohama tomorrow.',
+#    'Tell us about Nobunaga Oda.',
+#    'I want to use the Internet with my car navigation system.',
+    'Please let me know about good ramen in Sakuragicho.',
+]
 
 def main():
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.WARNING,
         format="%(asctime)s - %(filename)s:%(funcName)s[%(lineno)d] - %(message)s",
     )
     for prompt in test_prompts:

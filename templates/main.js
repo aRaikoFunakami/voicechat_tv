@@ -14,10 +14,14 @@ const characterImage = document.getElementById('characterImage');
 
 window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = new SpeechRecognition();
-recognition.lang = 'ja-JP';
+//
+// 音声認識の言語を明示的に設定する
+//
+//recognition.lang = 'ja-JP'; 
+recognition.lang = 'en-US';
 
 // zundamon or webseech
-const zundamon = true;
+const zundamon = false;
 let zundamon_speaking = false;
 var zundamon_controller = null;
 zundamon_controller = new AbortController();  // リクエスト中断用のAbortController
@@ -147,7 +151,8 @@ recognition.addEventListener('result', (e) => {
 	const maxBufferSize = 40; // 最大バッファサイズ（これを超えたら読み上げを開始する）
 	let delimiters = null; // 読み上げを開始するタイミングは デリミタを受信する、もしくはmaxBufferSizeを越えた場合
 	if (!zundamon)
-		delimiters = ['。', '.'];
+		//delimiters = ['。', '.'];
+		delimiters = ['。', '、', ',', '.', '!',':','！','：','　'];
 	else
 		delimiters = ['。', '、', ',', '.', '!',':','！','：','　',' '];  // ずんだもんの場合には '、' や '', 'で切っても読みがおかしくならない
 
