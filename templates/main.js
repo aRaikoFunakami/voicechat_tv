@@ -240,7 +240,9 @@ recognition.addEventListener('result', (e) => {
 				var voices = speechSynthesis.getVoices()
 				if (recognition.lang == 'en-US') {
 					utterThis.lang = 'en-US';
-					utterThis.voice = voices[39]; // en-US:Fred
+					//utterThis.voice = voices[39]; // en-US:Fred
+					utterThis.voice = voices[145]; // en-US:Google US English Female
+					//utterThis.voice = voices[146]; // en-GB:Google UK English Female
 					utterThis.rate = 0.9;
 				} else if (recognition.lang == 'zh-CN') {
 					utterThis.lang = 'zh-CN';
@@ -281,14 +283,14 @@ recognition.addEventListener('result', (e) => {
 		const data = jsonData.response;
 		const type = jsonData.type;
 		const finish = jsonData.finish_reason;
-		// ストリームで受け取ったデータを徐々に表示する
-		answer.style.display = 'flex';
 		// データの表示場所は answer_text
 		if (type == 'notification') {
 			//status.innerText = data;
 			updateStatus(data, 1);
 			return;
 		} else {
+			// ストリームで受け取ったデータを徐々に表示する
+			answer.style.display = 'flex';
 			answer_text.innerHTML = answer_text.innerHTML + data;
 		}
 		// レスポンス領域を自動スクロール
