@@ -16,7 +16,7 @@ app = Flask(__name__, static_folder='./templates', static_url_path='')
 def input():
     logging.info(request)
     input=request.args['text']
-    qa_stream = queue.Queue() 
+    qa_stream = queue.Queue()
     def dummy_callback(response=None):
         qa_stream.put(response)
         #if response is not None:
@@ -26,7 +26,7 @@ def input():
     producer_thread = threading.Thread(target=openai_chat.chat, args=(input,dummy_callback))
     # LEXUS のマニュアルについて回答する
     # producer_thread = threading.Thread(target=openai_chatPDF.chat, args=(input,dummy_callback))
-    producer_thread.start() 
+    producer_thread.start()
 
     #
     def stream():
@@ -34,7 +34,7 @@ def input():
             msg = qa_stream.get()
             # print(msg)
             if msg is None:
-                break 
+                break
             yield f'data: {msg}\n\n'
 
     stream_res = flask.Response(stream(), mimetype='text/event-stream')

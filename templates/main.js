@@ -208,7 +208,7 @@ recognition.addEventListener('result', (e) => {
 				// Ugh!: hard coding...
 				// language setting before speak
 				//
-				if (recognition.lang == 'en_US') {
+				if (recognition.lang == 'en-US') {
 					utterThis.lang = 'en-US';
 					var voices = speechSynthesis.getVoices()
 					utterThis.voice = voices[39]; // en-US:Fred
@@ -246,11 +246,17 @@ recognition.addEventListener('result', (e) => {
 		// event.dataをJSONにパース
 		let jsonData = JSON.parse(event.data);
 		const data = jsonData.response;
+		const type = jsonData.type;
 		const finish = jsonData.finish_reason;
 		// ストリームで受け取ったデータを徐々に表示する
 		answer.style.display = 'flex';
-		// データの表示場所は answer_text 
-		answer_text.innerHTML = answer_text.innerHTML + data;
+		// データの表示場所は answer_text
+		if(type == 'notification'){
+			status.innerText = data;
+			return;
+		}else{
+			answer_text.innerHTML = answer_text.innerHTML + data;
+		}
 		// レスポンス領域を自動スクロール
 		answer_text.scrollTop = answer_text.scrollHeight;
 		// ストリームデータを音声再生

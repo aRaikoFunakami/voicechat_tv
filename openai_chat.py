@@ -4,7 +4,7 @@ import os
 import sys
 import logging
 import langid
-
+import unicodedata
 
 
 # 参考資料
@@ -89,6 +89,9 @@ from openai_function_pdf import pdf_function
 from openai_function_hotpepper import get_hotpepper_info
 from openai_function_hotpepper import hotpepper_function
 
+# Unicodeカテゴリが"Symbol"または"Other"の文字を削除
+def remove_non_phonetic_characters(text):
+    return ''.join(c for c in text if unicodedata.category(c) not in ['So', 'Sc'])
 
 def call_defined_function(message):
     logging.info(message)
@@ -106,7 +109,9 @@ def call_defined_function(message):
     elif function_name == "get_hotpepper_info":
         #キーワードは日本語に変換する
         arguments['keyword'] = translate_text(arguments['keyword'], 'ja')
-        return get_hotpepper_info(arguments)
+        if(int(arguments['count']) > 2):
+            arguments['count'] = 2
+        return remove_non_phonetic_characters(get_hotpepper_info(arguments))
     else:
         return None
 
@@ -120,7 +125,7 @@ ISO639 = {
 }
 defualt_language = 'English'
 
-def translate_text(text, lang):
+def translate_text(text, lang = 'ja'):
     from_lang_id = langid.classify(text)[0]
     logging.info('from:%s(%s), to:%s(%s)',from_lang_id, ISO639[from_lang_id], lang, ISO639[lang])
     lang_to = ISO639.get(lang,defualt_language)
@@ -147,6 +152,11 @@ def translate_text(text, lang):
         print(f"{lang_from}から{lang_to}に翻訳した:{text}")
     return text
 
+def notify_callback(notification, callback):
+    res = { "response": f"{notification}", "type": "notification"}
+    callback(json.dumps(res, ensure_ascii=False))
+
+
 def streaming_chat(input, callback):
     f_call = {'name': '', 'arguments': ''}
     final_response = ""
@@ -159,6 +169,9 @@ def streaming_chat(input, callback):
     # function calling 毎のほうが良いかもしれない
     input_lang = langid.classify(input)[0]
     prompt_1 = translate_text("簡潔に答えよ。 ", input_lang) + input
+
+    # 処理中を示す
+    notify_callback(translate_text('処理を開始します', input_lang), callback)
 
     # 関数と引数を決定する
     # 関数を呼び出さない場合には ChatGPT が直接回答を返す
@@ -212,11 +225,13 @@ def streaming_chat(input, callback):
     #
     logging.info('function_call:%s', f_call)
     if(not function_call):
+        notify_callback(translate_text('ChatGPTが回答します', input_lang), callback)
         logging.info("ChatGPTが回答しました: %s", final_response)
         return { "response":final_response, "finish_reason": "stop"}
     #
     # 関数の呼び出し処理
     #
+    notify_callback(translate_text(f'インターネットやDBからデータを取得中です', input_lang), callback)
     message = {
         "content": None,
         "function_call": f_call,
@@ -229,10 +244,14 @@ def streaming_chat(input, callback):
     #
 
     function_name = message["function_call"]["name"]
+    # Ugh!: 店名など日本語で残りがちなので無理やり翻訳しておく
+    if(function_name == 'get_hotpepper_info'):
+        function_response =  translate_text(function_response, input_lang)
     #選択された関数に最適な prompt を選ぶ
     logging.info(f"選択された関数に最適な prompt を選ぶ: {function_name}")
     prompt_2 = f"絶対に{ISO639.get(input_lang, defualt_language)}で答えよ" + prompts[function_name] + input
 
+    notify_callback(translate_text(f'回答を作成中です', input_lang), callback)
     #
     # 入力文と同じ言語で回答文を作成する
     #
