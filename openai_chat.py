@@ -109,7 +109,7 @@ def call_defined_function(message):
     elif function_name == "get_hotpepper_info":
         #キーワードは日本語に変換する
         arguments['keyword'] = translate_text(arguments['keyword'], 'ja')
-        if(int(arguments['count']) > 2):
+        if(int(arguments.get('count', 1) > 2)):
             arguments['count'] = 2
         return remove_non_phonetic_characters(get_hotpepper_info(arguments))
     else:
@@ -127,7 +127,7 @@ defualt_language = 'English'
 
 def translate_text(text, lang = 'ja'):
     from_lang_id = langid.classify(text)[0]
-    logging.info('from:%s(%s), to:%s(%s)',from_lang_id, ISO639[from_lang_id], lang, ISO639[lang])
+    logging.info('from:%s(%s), to:%s(%s)',from_lang_id, ISO639.get(from_lang_id, defualt_language), lang, ISO639.get(lang,defualt_language))
     lang_to = ISO639.get(lang,defualt_language)
     lang_from = ISO639.get(from_lang_id, defualt_language)
     # lang に翻訳する

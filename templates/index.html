@@ -50,7 +50,8 @@
             /* テキストの色を白に */
             padding: 15px;
             /* テキスト周りの余白 */
-            font-size: 32px;
+            font-size: 48px;
+            display: none;
         }
 
         #answer {
@@ -91,7 +92,7 @@
             align-items: center;
             flex-direction: column;
             position: fixed;
-            bottom: 0%;
+            bottom: 2%;
         }
 
         #characterImage {
@@ -118,8 +119,8 @@
         <div id="answer_text"></div>
     </div>
     <div id="container">
-        <button id="microphone"></button>
         <p id="status">音声認識を開始してください</p>
+        <button id="microphone"></button>
     </div>
 
     <script>
@@ -132,6 +133,11 @@
             "http://127.0.0.1:8001/Big_Buck_Bunny_4K.webm.720p.webm",
             "http://127.0.0.1:8001/video2.mp4",
             //... more URLs if needed
+        ];
+        var langs = [
+            ja-JP,
+            en-US,
+            zh,
         ];
 
         // キーボードのキーが押されたときのイベントリスナーを設定します。

@@ -31,8 +31,23 @@ zundamon_controller = new AbortController();  // リクエスト中断用のAbor
 
 microphone.addEventListener('mousedown', startProcessing);
 //microphone.addEventListener('mouseup', stopProcessing);
-window.addEventListener('keydown', (e) => {
-	if (e.code === 'Space') startProcessing();
+window.addEventListener('keypress', (e) => {
+	if (e.code === 'Space') {
+		startProcessing();
+	}
+	else if (e.code === 'KeyE') {
+		recognition.lang = 'en-US';
+		updateStatus('Language:' + recognition.lang, 2);
+	}
+	else if (e.code === 'KeyJ') {
+		recognition.lang = 'ja-JP';
+		updateStatus('Language:' + recognition.lang, 2);
+	}
+	else if (e.code === 'KeyZ') {
+		// https://segakuin.com/html/attribute/lang.html
+		recognition.lang = 'zh-CN';
+		updateStatus( 'Language:' + recognition.lang, 2);
+	}
 });
 //window.addEventListener('keyup', (e) => {
 //	if (e.code === 'Space') stopProcessing();
@@ -43,6 +58,17 @@ document.addEventListener("mousedown", function () {
 	video.play();
 	video.muted = false;
 });
+
+let timeoutHandle_updateStatus = null;
+function updateStatus(text, displayTime) {
+	clearTimeout(timeoutHandle_updateStatus); // 前回の非表示処理をキャンセル
+	status.textContent = text;
+	status.style.display = "block";
+
+	timeoutHandle_updateStatus = setTimeout(function () {
+		status.style.display = "none";
+	}, displayTime * 1000);
+}
 
 // スクリーンショットを撮影し、画像URLを取得する処理
 function screenshotImage() {
@@ -132,7 +158,8 @@ recognition.addEventListener('result', (e) => {
 		}
 	}
 	// 処理するテキスト
-	status.innerText = `"${text}"`;
+	updateStatus(text, 2);
+	//status.innerText = `"${text}"`;
 
 	// 音声認識処理が終わるまでは処理を進めない
 	if (is_final != true) {
@@ -152,7 +179,8 @@ recognition.addEventListener('result', (e) => {
 		const image = screenshotImage();
 		answer_text.innerHTML = "";
 		// status をアップデート
-		status.innerText = 'スクリーンショットを撮影しました';
+		updateStatus('Screenshots', 2);
+		//status.innerText = 'スクリーンショットを撮影しました';
 		// answer 領域をアニメーションさせながら消す
 		hide_element_with_animation(answer);
 		return;
@@ -177,7 +205,8 @@ recognition.addEventListener('result', (e) => {
 	// 音声読み上げ終了したら表示していたエリアを消す
 	function endSpeakCallback() {
 		hide_element_with_animation(answer);
-		status.innerText = '音声再生終了';
+		//updateStatus('end of speech', 1);
+		//status.innerText = '音声再生終了';
 		video.muted = false;
 		if (zundamon)
 			zundamon_speaking = false;
@@ -191,8 +220,8 @@ recognition.addEventListener('result', (e) => {
 		const endCallback = callback;
 		// 音声再生前にビデオはミュートしてから再生する
 		video.muted = true;
-		status.innerText = "[ミュート中]"
-		status.innerText = status.innerText + '音声再生中';
+		//status.innerText = "[ミュート中]"
+		//status.innerText = status.innerText + '音声再生中';
 		// web speach での再生
 		if (!zundamon) {
 			function speak(text) {
@@ -208,10 +237,14 @@ recognition.addEventListener('result', (e) => {
 				// Ugh!: hard coding...
 				// language setting before speak
 				//
+				var voices = speechSynthesis.getVoices()
 				if (recognition.lang == 'en-US') {
 					utterThis.lang = 'en-US';
-					var voices = speechSynthesis.getVoices()
 					utterThis.voice = voices[39]; // en-US:Fred
+					utterThis.rate = 0.9;
+				} else if (recognition.lang == 'zh-CN') {
+					utterThis.lang = 'zh-CN';
+					utterThis.voice = voices[169]; // zh-CN: Google 普通話
 					utterThis.rate = 0.9;
 				}
 				synth.speak(utterThis);
@@ -251,10 +284,11 @@ recognition.addEventListener('result', (e) => {
 		// ストリームで受け取ったデータを徐々に表示する
 		answer.style.display = 'flex';
 		// データの表示場所は answer_text
-		if(type == 'notification'){
-			status.innerText = data;
+		if (type == 'notification') {
+			//status.innerText = data;
+			updateStatus(data, 1);
 			return;
-		}else{
+		} else {
 			answer_text.innerHTML = answer_text.innerHTML + data;
 		}
 		// レスポンス領域を自動スクロール
@@ -274,7 +308,8 @@ recognition.addEventListener('result', (e) => {
 		console.error('Error occurred:', event);
 		eventSource.close();
 		// ステータス変更
-		status.innerText = 'サーバーとの接続が終了しました。';
+		//updateStatus('Connection terminated', 2);
+		//status.innerText = 'サーバーとの接続が終了しました。';
 		// バッファが残っている場合はすべて読み上げる
 		//speakBuffer(endSpeakCallback);
 		// ボリュームを戻す
@@ -285,7 +320,8 @@ recognition.addEventListener('result', (e) => {
 		console.log('Connection opened');
 		// 新しい接続のタイミングで説明内容は初期化
 		answer_text.innerHTML = "";
-		status.innerText = `"${text}" をサーバーに送信しています...`;
+		//updateStatus('Data transmission in progress...', 2);
+		//status.innerText = `"${text}" をサーバーに送信しています...`;
 	};
 });
 
@@ -305,7 +341,8 @@ function startProcessing() {
 	if (window.speechSynthesis.speaking) {
 		window.speechSynthesis.cancel();
 		console.log('読み上げをキャンセルしました');
-		status.innerText = '読み上げをキャンセルしました';
+		updateStatus('Canceled.', 1);
+		//status.innerText = '読み上げをキャンセルしました';
 		video.muted = false;
 	}
 	if (zundamon_speaking) {
@@ -333,8 +370,9 @@ function startProcessing() {
 	// Micボタンの色味変更
 	microphone.style.filter = "brightness(0%) sepia(1000%) hue-rotate(0deg)";
 	video.muted = true;
-	status.innerText = "[ミュート中]"
-	status.innerText = status.innerText + '音声認識を開始しています...';
+	updateStatus('Voice recognition...', 3)
+	//status.innerText = "[ミュート中]"
+	//status.innerText = status.innerText + '音声認識を開始しています...';
 	console.log('音声認識を開始する');
 	recognition.start();
 }
@@ -348,7 +386,8 @@ function stopProcessing() {
 		console.log('音声認識をキャンセルする');
 		recognition.stop();
 		isCanceledSpeechRecognition = true;
-		status.innerText = '音声認識処理をキャンセルしました';
+		updateStatus('Canceled.', 1);
+		//status.innerText = '音声認識処理をキャンセルしました';
 		return;
 	}
 }
