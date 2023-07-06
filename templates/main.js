@@ -13,12 +13,14 @@ const answer_text = document.getElementById('answer_text');
 const characterImage = document.getElementById('characterImage');
 
 window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const recognition = new SpeechRecognition();
+const recognition = new webkitSpeechRecognition();
 //
 // 音声認識の言語を明示的に設定する
 //
 //recognition.lang = 'ja-JP'; 
 recognition.lang = 'en-US';
+recognition.interimResults = true;
+//recognition.continuous = true;
 
 // zundamon or webseech
 const zundamon = false;
@@ -28,13 +30,13 @@ zundamon_controller = new AbortController();  // リクエスト中断用のAbor
 
 
 microphone.addEventListener('mousedown', startProcessing);
-microphone.addEventListener('mouseup', stopProcessing);
+//microphone.addEventListener('mouseup', stopProcessing);
 window.addEventListener('keydown', (e) => {
 	if (e.code === 'Space') startProcessing();
 });
-window.addEventListener('keyup', (e) => {
-	if (e.code === 'Space') stopProcessing();
-});
+//window.addEventListener('keyup', (e) => {
+//	if (e.code === 'Space') stopProcessing();
+//});
 
 // 背景動画の音声を再生する 初期値は muted でないとautoplayできないためのダミー処理
 document.addEventListener("mousedown", function () {
@@ -114,15 +116,31 @@ recognition.addEventListener('error', function (event) {
 // - スクリーンショット処理
 //
 recognition.addEventListener('result', (e) => {
-	console.log('音声認識したテキスト:' + e.results[0][0].transcript);
 	// 音声認識のためにミュートしていたのを解除
 	video.muted = false;
 	// キャンセル処理されている場合は処理を中断
 	if (isCanceledSpeechRecognition) return;
 
+	console.log('resultIndex[]:' + e.resultIndex + " " + e.results.length);
+	var is_final = false;
+	var text = ""
+	for (var i = e.resultIndex; i < e.results.length; i++) {
+		text = text + e.results[i][0].transcript;
+		console.log('isFinal:[' + i + '] ' + e.results[i].isFinal + '音声認識したテキスト:[' + i + '] ' + e.results[i][0].transcript);
+		if (e.results[i].isFinal) {
+			is_final = true
+		}
+	}
 	// 処理するテキスト
-	const text = e.results[0][0].transcript;
-	status.innerText = `"${text}" を認識しました`;
+	status.innerText = `"${text}"`;
+
+	// 音声認識処理が終わるまでは処理を進めない
+	if (is_final != true) {
+		console.log('is_final: ' + is_final)
+		return
+	}
+
+
 
 	// ローカルでの処理してしまう
 	// スクリーンショット
@@ -152,9 +170,9 @@ recognition.addEventListener('result', (e) => {
 	let delimiters = null; // 読み上げを開始するタイミングは デリミタを受信する、もしくはmaxBufferSizeを越えた場合
 	if (!zundamon)
 		//delimiters = ['。', '.'];
-		delimiters = ['。', '、', ',', '.', '!',':','！','：','　'];
+		delimiters = ['。', '、', ',', '.', '!', ':', '！', '：', '　'];
 	else
-		delimiters = ['。', '、', ',', '.', '!',':','！','：','　',' '];  // ずんだもんの場合には '、' や '', 'で切っても読みがおかしくならない
+		delimiters = ['。', '、', ',', '.', '!', ':', '！', '：', '　', ' '];  // ずんだもんの場合には '、' や '', 'で切っても読みがおかしくならない
 
 	// 音声読み上げ終了したら表示していたエリアを消す
 	function endSpeakCallback() {
@@ -186,15 +204,25 @@ recognition.addEventListener('result', (e) => {
 						callback();
 					}
 				};
+				//
+				// Ugh!: hard coding...
+				// language setting before speak
+				//
+				if (recognition.lang == 'en_US') {
+					utterThis.lang = 'en-US';
+					var voices = speechSynthesis.getVoices()
+					utterThis.voice = voices[39]; // en-US:Fred
+					utterThis.rate = 0.9;
+				}
 				synth.speak(utterThis);
 			}
-			if(buffer == ""&& finish == "stop"){
+			if (buffer == "" && finish == "stop") {
 				return;
 			}
 			speak(buffer);
 			speaking_counter = speaking_counter + 1;
 			console.log(speaking_counter + " " + buffer); // data can be accessed here
-		// ずんだもんでの再生
+			// ずんだもんでの再生
 		} else {
 			// 実際の読み上げ処理を行う。バッファ内のデータは読み上げ処理用のバッファに追加済みなのでクリアする
 			if (finish != "stop") {
@@ -257,7 +285,10 @@ recognition.addEventListener('result', (e) => {
 
 function startProcessing() {
 	// Micボタンは一度 Down すると UP するまで再度 Down できない
-	if (isPushedMicButton) return;
+	if (isPushedMicButton) {
+		stopProcessing();
+		isPushedMicButton = false;
+	}
 	isPushedMicButton = true;
 	// 音声入力中の場合は無視する
 	if (isSpeechRecognizing) return;
