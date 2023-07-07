@@ -12,8 +12,9 @@ langchainのConversationalRetrievalChain.from_llmを利用する場合にはgpt-
 model_name = "gpt-3.5-turbo-0613"
 #model_name = "gpt-4-0613"
 
-#default_persist_directory = "./chroma_split_documents"
-default_persist_directory = "./chroma_load_and_split"
+# default_persist_directory = "./chroma_split_documents"
+# default_persist_directory = "./chroma_load_and_split"
+default_persist_directory = "./chroma_panasonic_viera"
 
 
 # load config
@@ -47,8 +48,11 @@ def get_pdf_info(query, persist_directory = default_persist_directory):
 #
 # call by openai functional calling
 #
-pdf_function = {
-    "name": "get_pdf_info",
+def get_pdf_lexus_info(query, persist_directory = './chroma_load_and_split'):
+    return get_pdf_info(query, persist_directory)
+
+pdf_lexus_function = {
+    "name": "get_pdf_lexus_info",
     "description": "車の操作方法、カーナビの使い方、マルチメディアの操作方法を取得します",
     "parameters": {
         "type": "object",
@@ -56,6 +60,24 @@ pdf_function = {
             "query": {
                 "type": "string",
                 "description": "車の操作方法、カーナビの使い方、マルチメディアの操作方法についての質問",
+            },
+        },
+        "required": ["query"],
+    },
+}
+
+def get_pdf_viera_info(query, persist_directory = './chroma_panasonic_viera'):
+    return get_pdf_info(query, persist_directory)
+
+pdf_viera_function = {
+    "name": "get_pdf_viera_info",
+    "description": "インターネットに接続したスマートテレビであるビエラの操作方法を取得します",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "インターネットに接続したスマートテレビであるビエラの操作方法についての質問",
             },
         },
         "required": ["query"],
@@ -84,7 +106,7 @@ def non_streaming_chat(text):
         response = openai.ChatCompletion.create(
             model=model_name,
             messages=[{"role": "user", "content": text}],
-            functions=[pdf_function],
+            functions=[pdf_lexus_function, pdf_viera_function],
             function_call="auto",
         )
     except openai.error.OpenAIError as e:
@@ -120,7 +142,7 @@ def chat(text):
     q = template.format(text)
     return non_streaming_chat(q)
 
-queries = [
+queries1 = [
     ["カーナビでYouTubeを見たい", "get_pdf_info"],
     ["I want to watch YouTube on my car navigation system.", "get_pdf_info"],
     ["カーナビのWebブラウザでYouTubeを閲覧したいです。", "get_pdf_info"],
@@ -133,9 +155,16 @@ queries = [
     ["Can you provide instructions on how to watch YouTube on the car navigation system?", "get_pdf_info"]
 ]
 
+queries = [
+    ["カーナビでYouTubeを見る手順を教えてください。", "get_pdf_lexus_info"],
+    ["What is the procedure for watching YouTube on a car navigation system?", "get_pdf_lexus_info"],
+    ['ビエラでYouTubeを見たい', "get_pdf_viera_info"],
+    ['I want to watch YouTube on my Viera.', "get_pdf_viera_info"],
+]
+
 def main():
     logging.basicConfig(
-        level=logging.WARNING,
+        level=logging.INFO,
         format="%(asctime)s - %(filename)s:%(funcName)s[%(lineno)d] - %(message)s",
     )
     for query in queries:

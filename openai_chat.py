@@ -53,7 +53,8 @@ get_hotpepper_info_prompt = f'''
 
 prompts = {
     "get_weather_info": get_weather_info_prompt,
-    "get_pdf_info" : get_pdf_info_prompt,
+    "get_pdf_lexus_info" : get_pdf_info_prompt,
+    "get_pdf_viera_info" : get_pdf_info_prompt,
     "get_hotpepper_info" : get_hotpepper_info_prompt,
 }
 
@@ -80,8 +81,10 @@ from openai_function_weather import weather_function
 #
 # カーナビについての問い合わせに
 #
-from openai_function_pdf import get_pdf_info
-from openai_function_pdf import pdf_function
+from openai_function_pdf import get_pdf_lexus_info
+from openai_function_pdf import get_pdf_viera_info
+from openai_function_pdf import pdf_lexus_function
+from openai_function_pdf import pdf_viera_function
 
 #
 # ホットペッパーでレストラン情報を取得する
@@ -113,8 +116,10 @@ def call_defined_function(message):
             latitude=arguments.get("latitude"),
             longitude=arguments.get("longitude"),
         )
-    elif function_name == "get_pdf_info":
-        return get_pdf_info(arguments.get("query"))
+    elif function_name == "get_pdf_lexus_info":
+        return get_pdf_lexus_info(arguments.get("query"))
+    elif function_name == "get_pdf_viera_info":
+        return get_pdf_viera_info(arguments.get("query"))
     elif function_name == "get_hotpepper_info":
         #キーワードは日本語に変換する
         arguments['keyword'] = translate_text(arguments['keyword'], 'ja')
@@ -191,7 +196,7 @@ def streaming_chat(input, callback):
         response = openai.ChatCompletion.create(
             model=model01,
             messages=[{"role": "user", "content": prompt_1}],
-            functions=[weather_function, pdf_function, hotpepper_function],
+            functions=[weather_function, pdf_lexus_function, pdf_viera_function, hotpepper_function],
             function_call="auto",
             stream=True
         )
@@ -329,7 +334,13 @@ test_prompts = [
 #   'Let me know what the weather will be like in Yokohama tomorrow.',
 #    'Tell us about Nobunaga Oda.',
 #    'I want to use the Internet with my car navigation system.',
-    'Please let me know about good ramen in Sakuragicho.',
+#    'Please let me know about good ramen in Sakuragicho.',
+    'ビエラでインターネットに接続してYouTubeを見たい',
+    'ビエラでヘッドフォン端子の出力を設定したい',
+    'ビエラですべてのテレビ放送が映りません',
+    'I want to watch YouTube on my Viera.',
+    "カーナビでYouTubeを見る手順を教えてください。",
+    "What is the procedure for watching YouTube on a car navigation system?",
 ]
 
 def main():
