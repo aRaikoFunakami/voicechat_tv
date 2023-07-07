@@ -6,7 +6,7 @@ let eventSource = null;
 
 const video = document.getElementById('video');
 const microphone = document.getElementById('microphone');
-microphone.disabled = true; // クリック禁止　スペースのみOK
+microphone.disabled = false; // クリックOK
 const status = document.getElementById('status');
 const answer = document.getElementById('answer');
 const answer_text = document.getElementById('answer_text');
@@ -29,7 +29,7 @@ var zundamon_controller = null;
 zundamon_controller = new AbortController();  // リクエスト中断用のAbortController
 
 
-microphone.addEventListener('mousedown', startProcessing);
+microphone.addEventListener('click', startProcessing);
 //microphone.addEventListener('mouseup', stopProcessing);
 window.addEventListener('keypress', (e) => {
 	if (e.code === 'Space') {
