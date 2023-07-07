@@ -17,8 +17,8 @@ const recognition = new webkitSpeechRecognition();
 //
 // 音声認識の言語を明示的に設定する
 //
-//recognition.lang = 'ja-JP'; 
-recognition.lang = 'en-US';
+recognition.lang = 'ja-JP'; 
+//recognition.lang = 'en-US';
 recognition.interimResults = true;
 //recognition.continuous = true;
 
